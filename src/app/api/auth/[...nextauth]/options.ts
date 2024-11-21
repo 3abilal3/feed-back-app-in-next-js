@@ -1,10 +1,11 @@
 import dbConnect from "@/lib/dbConnect";
 import { UserModel } from "@/model/User";
 import { error } from "console";
-import NextAuth from "next-auth"
+import NextAuth,{NextAuthOptions} from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from 'bcryptjs'
-export const authOptions = {
+import { promises } from "dns";
+export const authOptions:NextAuthOptions = {
     providers:[
         CredentialsProvider({
             id:'credentials',
@@ -13,7 +14,7 @@ export const authOptions = {
                 email:{label:"Email",type:"email"},
                 password:{label:"password",type:"password"}
             },
-            async authorize(credentials:any, req:any) {
+            async authorize(credentials:any):Promise<any> {
                 await dbConnect()
                 try {
                     const user=await UserModel.findOne({
@@ -37,5 +38,32 @@ export const authOptions = {
                 
             },
         })
-    ]
-}
+    ],
+    callbacks:{
+        async jwt({ token, user}){
+            if(user){
+                token._id=user._id?.toString();
+                token.isVerified=user.isVerified;
+                token.isAcceptingMessages=user.isAcceptingMessages;
+                token.username=user.username;
+            }
+            return token
+        },
+        async session({session,token}){
+            if(token){
+                session.user._id=token._id;
+                session.user.isVerified=token.isVerified;
+                session.user.isAcceptingMessages=token.isAcceptingMessages
+                session.user.username=token.username;
+            }
+            return session
+        }
+        },
+    session:{
+        strategy:"jwt"
+    },
+    secret:process.env.NEXTAUTH_SECRET,        
+    pages: {
+        signIn: '/sign-in',
+      },
+    }
